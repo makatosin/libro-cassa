@@ -354,7 +354,8 @@ const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() :
 const slug = s => s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'x';
 
 const CAT_SPESA = [
-  {id:'carburante', n:'Carburante', h:28}, {id:'bar', n:'Bar e uscite', h:330}, {id:'ristoranti', n:'Ristoranti', h:8},
+  {id:'carburante', n:'Carburante', h:28}, {id:'alimentari', n:'Spesa', h:112}, {id:'bar', n:'Bar e uscite', h:330}, {id:'ristoranti', n:'Ristoranti', h:8},
+  {id:'vizi', n:'Vizi', h:72},
   {id:'auto', n:'Auto (bollo, tagliandi…)', h:205}, {id:'trasporti', n:'Trasporti', h:180}, {id:'abbonamenti', n:'Abbonamenti', h:262},
   {id:'shopping', n:'Shopping', h:300}, {id:'svago', n:'Svago e hobby', h:140}, {id:'viaggi', n:'Viaggi', h:222},
   {id:'regali', n:'Regali', h:345}, {id:'salute', n:'Salute', h:160}, {id:'cura', n:'Cura personale', h:285},
