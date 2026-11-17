@@ -115,6 +115,17 @@ h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
 
 .bud{display:flex;flex-direction:column;gap:5px;padding:11px 14px;border-top:1px solid var(--line)}
 .bud:first-child{border-top:0}
+.catrow{border-top:1px solid var(--line)}
+.catrow:first-child{border-top:0}
+.catrow > .bud{border-top:0;width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-bottom:0;cursor:pointer}
+.bud .l .chev{display:inline-block;margin-left:6px;color:var(--muted);transition:transform .2s ease}
+.catrow.open .chev{transform:rotate(90deg)}
+.catrow.open > .bud{background:var(--soft)}
+.catmov{background:var(--soft);border-top:1px solid var(--line)}
+.catmov .mov{border-top:1px solid var(--line);padding-left:28px}
+.catmov .mov .dot{visibility:hidden}
+.catmov .mov:first-child{border-top:0}
+.catmov .mov small .d{font-variant-numeric:tabular-nums}
 .bud .l{display:flex;justify-content:space-between;gap:10px;font-size:14px}
 .bud .l .num{color:var(--muted);font-size:13px;white-space:nowrap}
 .bud .l .num b{color:var(--ink);font-weight:500}
@@ -387,6 +398,7 @@ const syncVars = () => { conti = S.conti; movimenti = S.movimenti; };
 const form = {tipo:'spesa', cat:'carburante', sotto:'', conto:'intesa', da:'', a:'intesa', data:today(), editId:null};
 let meseSel = curYm();
 let openAcc = null;
+const openCats = new Set();
 
 /* ---------- navigation ---------- */
 const VIEWS = ['aggiungi','mese','patrimonio','impostazioni'];
@@ -606,8 +618,14 @@ function renderMese(){
   if (!ids.length) box.replaceChildren(el('div','empty', 'Nessuna spesa in questo mese.'));
   else box.replaceChildren(...ids.map(id => {
     const c = catInfo(id), sp = per[id] || 0, b = +bud[id] || 0;
-    const row = el('div', 'bud'), l = el('div', 'l');
+    const movCat = sortMov(usc.filter(m => m.categoria === id));
+    const wrap = el('div', 'catrow' + (openCats.has(id) ? ' open' : ''));
+    const row = el('button', 'bud'), l = el('div', 'l'); row.type = 'button';
+    row.setAttribute('aria-expanded', openCats.has(id) ? 'true' : 'false');
+    row.onclick = () => { if (openCats.has(id)) openCats.delete(id); else openCats.add(id); renderMese(); };
     const name = el('span'); const d = el('span','cdot'); d.style.background = dotColor(c); name.append(d, document.createTextNode(c.n));
+    name.append(el('span', 'chev', '›'));
+    if (movCat.length) name.append(el('span', 'hint', ` · ${movCat.length}`));
     const val = el('span', 'num'); val.append(el('b', null, eur(sp))); if (b) val.append(document.createTextNode(' / ' + eur0(b)));
     l.append(name, val);
     const tr = el('div', 'track'), i = el('i');
@@ -617,7 +635,19 @@ function renderMese(){
     tr.append(i); row.append(l, tr);
     if (b && sp > b) row.append(el('small', 'hint', `Sforato di ${eur(sp - b)}`));
     else if (b && ym === curYm()) row.append(el('small', 'hint', `Restano ${eur(b - sp)}`));
-    return row;
+    wrap.append(row);
+    if (openCats.has(id)){
+      const sub = el('div', 'catmov');
+      if (!movCat.length) sub.append(el('div', 'empty', 'Nessuna spesa in questa categoria.'));
+      movCat.forEach(m => {
+        const r = movRow(m);
+        const sm = r.querySelector('small');
+        if (sm){ const [y, mm, dd] = (m.data || '').split('-'); sm.textContent = `${dd}/${mm}` + (sm.textContent ? ' · ' + sm.textContent : ''); }
+        sub.append(r);
+      });
+      wrap.append(sub);
+    }
+    return wrap;
   }));
   const lista = $('#listaMese'); const sorted = sortMov(ms);
   if (!sorted.length){ lista.replaceChildren(el('div','empty','Nessun movimento.')); return; }
