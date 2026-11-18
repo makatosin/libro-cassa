@@ -45,7 +45,7 @@ button{cursor:pointer}
 
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .brand{font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:-.01em}
-.top .sub{color:var(--muted);font-size:13px}
+.top .sub{color:var(--muted);font-size:13px;background:none;border:0;padding:4px 0;text-align:right;cursor:pointer}
 .notice{background:var(--accent-soft);border-radius:10px;padding:10px 12px;font-size:14px}
 
 .view{display:flex;flex-direction:column;gap:20px}
@@ -195,7 +195,7 @@ img{max-width:100%}
 <div class="app">
   <header class="top">
     <div class="brand">Libro Cassa</div>
-    <div class="sub" id="topSub"></div>
+    <button type="button" class="sub" id="topSub" title="Aggiorna dal foglio"></button>
   </header>
   <section class="view setup" id="v-setup" hidden>
     <h2>Collega il tuo foglio</h2>
@@ -455,22 +455,36 @@ let loading = false, lastLoad = 0;
 async function load(quiet){
   if (!link || loading) return;
   if (queue.length){ flush(); return; }
-  loading = true;
+  loading = true; renderStatus();
   try {
     const d = await api('load');
     S = {conti:d.conti || [], movimenti:d.movimenti || [], budget:d.budget || {}, ricorrenti:d.ricorrenti || [], storico:d.storico || []};
-    syncVars(); queue.forEach(applyLocal); synced = true; lastLoad = Date.now(); persist(); renderAll();
+    syncVars(); queue.forEach(applyLocal); synced = true; lastLoad = Date.now(); syncErr = false; persist(); renderAll();
   } catch(e){
+    syncErr = true; lastLoad = Date.now();
     if (e && e.server && !quiet) flash('Errore dal foglio: ' + e.message);
   } finally { loading = false; renderStatus(); }
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - lastLoad > 30000) flush(), load(true); });
-window.addEventListener('online', () => flush());
+// riscarica dal foglio ogni volta che torni sull'app (anche sul Mac, dove la finestra resta aperta) e ogni minuto mentre è aperta
+let syncErr = false;
+function refresh(force){
+  if (!link) return;
+  if (!force && Date.now() - lastLoad < 5000) return;
+  if (queue.length) flush(); else load(true);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
+window.addEventListener('focus', () => refresh());
+window.addEventListener('pageshow', () => refresh());
+window.addEventListener('online', () => refresh(true));
+setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 60000);
 function renderStatus(){
   const liq = conti.filter(c => c.gruppo === 'liquidita' && !c.archiviato).reduce((s,c) => s + saldo(c), 0);
   const parts = [];
   if (conti.length) parts.push('Sul conto ' + eur(liq));
   if (queue.length) parts.push(queue.length === 1 ? '1 da inviare' : queue.length + ' da inviare');
+  else if (loading) parts.push('aggiorno…');
+  else if (syncErr) parts.push('non aggiornato · tocca per riprovare');
+  else if (synced && lastLoad) parts.push('agg. ' + new Date(lastLoad).toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'}));
   $('#topSub').textContent = parts.join(' · ');
 }
 
@@ -847,6 +861,7 @@ $('#csv').onclick = async () => {
   try { await navigator.clipboard.writeText(txt); flash('CSV copiato: incollalo in Excel o Fogli'); }
   catch(e){ const ta = $('#csvOut'); ta.hidden = false; ta.value = txt; ta.focus(); ta.select(); flash('Seleziona il testo e copialo'); }
 };
+$('#topSub').onclick = () => { flush(); load(); };
 $('#aggiorna').onclick = () => { flush(); load(); flash('Aggiorno dal foglio…'); };
 $('#scollega').onclick = () => {
   const b = $('#scollega');
