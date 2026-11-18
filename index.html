@@ -416,11 +416,18 @@ function flash(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = fals
 
 /* ---------- sync with Google Sheet ---------- */
 async function api(action, payload, lk = link){
-  const r = await fetch(lk.url, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({token:lk.token, action, payload})});
+  // se il foglio non risponde entro 25 secondi (rete lenta, app messa in pausa dal telefono) si riprova dopo, invece di restare bloccati
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 25000);
+  let r;
+  try { r = await fetch(lk.url, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({token:lk.token, action, payload}), signal: ctrl.signal}); }
+  catch(e){ throw {net:true}; }
+  finally { clearTimeout(t); }
   let j; try { j = await r.json(); } catch(e){ throw {net:true}; }
   if (!j.ok) throw {server:true, message:j.error || 'errore'};
   return j.data;
 }
+// errori temporanei del foglio (occupato, tempo scaduto): la modifica resta in coda e riparte da sola
+const erroreTemporaneo = m => /lock|timeout|time out|tempo|busy|occupat|service|servizio|try again|riprova|too many|troppe|quota|exceeded/i.test(String(m || ''));
 function upsertBy(arr, obj, key){ const i = arr.findIndex(x => x[key] === obj[key]); if (i >= 0) arr[i] = obj; else arr.push(obj); }
 function applyLocal(op){
   const p = op.payload;
@@ -444,8 +451,8 @@ async function flush(){
   while (queue.length){
     try { await api(queue[0].action, queue[0].payload); queue.shift(); persist(); }
     catch(e){
-      if (e && e.server){ flash('Il foglio ha rifiutato una modifica: ' + e.message); queue.shift(); persist(); }
-      else { retryT = setTimeout(flush, 20000); break; }
+      if (e && e.server && !erroreTemporaneo(e.message) && /codice di accesso|non valido|sconosciuta|mancanti/i.test(e.message)){ flash('Il foglio ha rifiutato una modifica: ' + e.message); queue.shift(); persist(); }
+      else { retryT = setTimeout(flush, e && e.server ? 8000 : 15000); break; }
     }
   }
   flushing = false; renderStatus();
